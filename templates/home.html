@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Pending Approvals</title>
+    <style>
+        :root {
+            --color-offwhite: #F2F0EF;
+            --color-gray: #BBBDBC;
+            --color-teal: #245F73;
+            --color-brown: #733E24;
+            --color-teal-light: rgba(36, 95, 115, 0.1);
+            --color-teal-dark: #1a4858;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: var(--color-offwhite);
+            padding: 0;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-teal-dark) 100%);
+            color: white;
+            padding: 24px 20px;
+            box-shadow: 0 2px 8px rgba(36, 95, 115, 0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header h1 {
+            font-size: clamp(20px, 5vw, 28px);
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+        
+        .header p {
+            opacity: 0.95;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(36, 95, 115, 0.1);
+            margin-top: 20px;
+        }
+        
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.8;
+        }
+        
+        .empty-state h2 {
+            color: var(--color-teal);
+            margin-bottom: 8px;
+            font-size: 22px;
+            font-weight: 600;
+        }
+        
+        .empty-state p {
+            color: #666;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        
+        .empty-state p:last-child {
+            margin-top: 8px;
+            color: var(--color-teal);
+            font-weight: 500;
+        }
+        
+        .approvals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        
+        @media (min-width: 768px) {
+            .approvals-grid {
+                gap: 20px;
+            }
+        }
+        
+        .approval-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(36, 95, 115, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            border: 1px solid rgba(36, 95, 115, 0.08);
+        }
+        
+        .approval-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(36, 95, 115, 0.15);
+            border-color: var(--color-teal);
+        }
+        
+        .approval-card:active {
+            transform: translateY(-2px);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            gap: 12px;
+        }
+        
+        .avatar {
+            width: 48px;
+            height: 48px;
+            min-width: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--color-teal), var(--color-brown));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(36, 95, 115, 0.2);
+        }
+        
+        .card-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .card-info h3 {
+            color: #1a1a1a;
+            font-size: 17px;
+            margin-bottom: 6px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: var(--color-teal-light);
+            color: var(--color-teal);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .message-preview {
+            background: var(--color-offwhite);
+            border-radius: 12px;
+            padding: 14px;
+            margin: 16px 0;
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 80px;
+            overflow: hidden;
+            position: relative;
+            border-left: 3px solid var(--color-teal);
+        }
+        
+        .message-preview strong {
+            color: var(--color-teal);
+            font-weight: 600;
+        }
+        
+        .message-preview::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            background: linear-gradient(transparent, var(--color-offwhite));
+        }
+        
+        .view-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 14px;
+            background: var(--color-teal);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(36, 95, 115, 0.2);
+        }
+        
+        .view-button:hover {
+            background: var(--color-teal-dark);
+            box-shadow: 0 4px 12px rgba(36, 95, 115, 0.3);
+        }
+        
+        .view-button:active {
+            transform: scale(0.98);
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 480px) {
+            .header {
+                padding: 20px 16px;
+            }
+            
+            .container {
+                padding: 16px;
+            }
+            
+            .approval-card {
+                padding: 16px;
+            }
+            
+            .empty-state {
+                padding: 40px 16px;
+            }
+        }
+        
+        /* Loading animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .approval-card {
+            animation: fadeIn 0.4s ease-out backwards;
+        }
+        
+        .approval-card:nth-child(1) { animation-delay: 0.05s; }
+        .approval-card:nth-child(2) { animation-delay: 0.1s; }
+        .approval-card:nth-child(3) { animation-delay: 0.15s; }
+        .approval-card:nth-child(4) { animation-delay: 0.2s; }
+        .approval-card:nth-child(5) { animation-delay: 0.25s; }
+        .approval-card:nth-child(6) { animation-delay: 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>📊 Message Approval Dashboard</h1>
+            <p>Pending Approvals: <strong>{{ approvals|length }}</strong></p>
+        </div>
+    </div>
+    
+    <div class="container">
+        {% if approvals %}
+            <div class="approvals-grid">
+                {% for token, data in approvals.items() %}
+                <div class="approval-card" onclick="window.location.href='/approve/{{ token }}'">
+                    <div class="card-header">
+                        <div class="avatar">{{ data.sender_name[0].upper() }}</div>
+                        <div class="card-info">
+                            <h3>{{ data.sender_name }}</h3>
+                            <span class="badge">{{ data.language }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="message-preview">
+                        <strong>Message:</strong> {{ data.incoming_msg }}
+                    </div>
+                    
+                    <button class="view-button">
+                        👁️ View & Approve
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">✅</div>
+                <h2>All Clear!</h2>
+                <p>No pending message approvals</p>
+                <p>Messages will appear here when users contact you</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <script>
+        // Auto-refresh every 10 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 10000);
+    </script>
+</body>
+</html>
