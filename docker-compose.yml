@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+
+  telegram_bot:
+    build: .
+    container_name: telegram_bot
+    command: python telegram_bot_groups.py
+    restart: always
+    volumes:
+      - ./bot_data.db:/app/bot_data.db
+    env_file:
+      - .env
+
+  dashboard:
+    build: .
+    container_name: dashboard
+    command: python dashboard_groups.py
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./bot_data.db:/app/bot_data.db
+    env_file:
+      - .env
