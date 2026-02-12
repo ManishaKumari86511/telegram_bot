@@ -1,46 +1,50 @@
 """
 CONFIGURATION FILE
-Bot settings and credentials
+Bot settings and credentials - loaded from .env file
 """
 
+import os
+from dotenv import load_dotenv
+
+# .env file load karo
+load_dotenv()
+
 # ===== OPENAI CREDENTIALS =====
-OPENAI_API_KEY = ""
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # ===== TELEGRAM CREDENTIALS =====
+YOUR_API_ID = int(os.getenv("YOUR_API_ID", "0"))
+YOUR_API_HASH = os.getenv("YOUR_API_HASH", "")
+YOUR_PHONE = os.getenv("YOUR_PHONE", "")
+YOUR_LANGUAGE = os.getenv("YOUR_LANGUAGE", "en")
 
-# YOUR PERSONAL ACCOUNT (for receiving notifications and approvals)
-YOUR_API_ID = 38833990
-YOUR_API_HASH = ''
-YOUR_PHONE = '+919888522266'
-YOUR_LANGUAGE = 'en'  # Your preferred language
-
-# BOT ACCOUNT (for sending translations in groups)
-BOT_TOKEN = ""  # Get from @BotFather
-BOT_USERNAME = "language_translator1_bot"  # Your bot's username (without @)
+# ===== BOT CREDENTIALS =====
+BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 
 # ===== BUSINESS INFORMATION =====
 BUSINESS_INFO = {
-    'company_name': 'Your Company Name',
-    'business_type': 'Digital Marketing Services',
-    'location': 'Chandigarh, India',
-    'specialization': 'Social Media Marketing, Content Creation'
+    'company_name': os.getenv("COMPANY_NAME", "Your Company Name"),
+    'business_type': os.getenv("BUSINESS_TYPE", "Digital Marketing Services"),
+    'location': os.getenv("LOCATION", "Chandigarh, India"),
+    'specialization': os.getenv("SPECIALIZATION", "Social Media Marketing, Content Creation"),
 }
 
 # ===== BOT BEHAVIOR =====
 AI_SETTINGS = {
-    'enable_auto_reply': False,  # True = auto-send, False = require approval
-    'confidence_threshold': 85,  # Auto-send only if AI is >85% confident
+    'enable_auto_reply': os.getenv("ENABLE_AUTO_REPLY", "False") == "True",
+    'confidence_threshold': int(os.getenv("CONFIDENCE_THRESHOLD", "85")),
 }
 
 # ===== TRANSLATION SETTINGS =====
 TRANSLATION_SETTINGS = {
-    'enabled': True,
-    'group_languages': ['pl', 'de'],  # Languages to broadcast in groups
-    'use_bot_for_translations': True,  # True = bot sends, False = your account sends
+    'enabled': os.getenv("TRANSLATION_ENABLED", "True") == "True",
+    'group_languages': os.getenv("GROUP_LANGUAGES", "pl,de").split(","),
+    'use_bot_for_translations': os.getenv("USE_BOT_FOR_TRANSLATIONS", "True") == "True",
 }
 
 # ===== DASHBOARD =====
-DASHBOARD_URL = "http://localhost:5000"
+DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:5000")
 
 # ===== AUTO-REPLY CONTROL =====
 ENABLE_AUTO_REPLY = AI_SETTINGS['enable_auto_reply']
