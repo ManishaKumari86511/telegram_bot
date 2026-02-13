@@ -1,7 +1,5 @@
 version: "3.9"
-
 services:
-
   telegram_bot:
     build: .
     container_name: telegram_bot
@@ -9,12 +7,11 @@ services:
     restart: always
     volumes:
       - ./bot_data.db:/app/bot_data.db
-        - ./bot_session.session:/app/bot_session.session
-        - ./main_session.session:/app/main_session.session
-        - ./user_session.session:/app/user_session.session
+      - ./bot_session.session:/app/bot_session.session
+      - ./main_session.session:/app/main_session.session
+      - ./user_session.session:/app/user_session.session
     env_file:
       - .env
-
   dashboard:
     build: .
     container_name: dashboard
