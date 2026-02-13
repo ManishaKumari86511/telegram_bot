@@ -159,22 +159,48 @@ def store_interaction(user_id, user_name, incoming_msg, ai_response, was_approve
         print(f"❌ Store interaction error: {e}")
         return False
 
-# ⭐ NEW: Queue message with translation
+# ✅ UPDATED: Queue message with correct sender_type
 def queue_telegram_message(user_id, message, is_group=False, chat_id=None, topic_id=None, target_language=None):
-    """Queue message with translation support"""
+    """
+    Queue message with translation support
+    All dashboard messages go via personal account (sender_type='user')
+    """
     try:
         conn = get_db_connection_write()
         c = conn.cursor()
-        c.execute("""
-            INSERT INTO outgoing_messages (user_id, message, created_at, is_group, chat_id, topic_id, target_language)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (user_id, message, datetime.now(), int(is_group), chat_id, topic_id, target_language))
+        
+        # Check if columns exist
+        c.execute("PRAGMA table_info(outgoing_messages)")
+        columns = [column[1] for column in c.fetchall()]
+        
+        if 'sender_type' in columns and 'message_category' in columns:
+            # ✅ Dashboard messages always via 'user' account (not bot)
+            c.execute("""
+                INSERT INTO outgoing_messages 
+                (user_id, message, created_at, is_group, chat_id, topic_id, target_language, sender_type, message_category)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, message, datetime.now(), int(is_group), chat_id, topic_id, target_language, 'user', 'response'))
+        elif 'sender_type' in columns:
+            c.execute("""
+                INSERT INTO outgoing_messages 
+                (user_id, message, created_at, is_group, chat_id, topic_id, target_language, sender_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, message, datetime.now(), int(is_group), chat_id, topic_id, target_language, 'user'))
+        else:
+            # Fallback for old schema
+            c.execute("""
+                INSERT INTO outgoing_messages (user_id, message, created_at, is_group, chat_id, topic_id, target_language)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, message, datetime.now(), int(is_group), chat_id, topic_id, target_language))
+        
         conn.commit()
         conn.close()
-        print(f"✅ Message queued (lang: {target_language})")
+        print(f"✅ Message queued via personal account (lang: {target_language})")
         return True
     except Exception as e:
         print(f"❌ Queue error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # ===== ROUTES =====
