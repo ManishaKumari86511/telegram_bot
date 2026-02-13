@@ -411,7 +411,6 @@ if __name__ == '__main__':
     print("\n" + "="*70)
     print("🌐 WEB DASHBOARD - TRANSLATION ENABLED")
     print("="*70)
-    print("📱 Dashboard: http://localhost:5000")
     print("💾 Database: SQLite (bot_data.db)")
     print("🔒 Locking: WAL mode + 15 retries")
     print("🚀 Telegram: Database queue")
@@ -421,4 +420,4 @@ if __name__ == '__main__':
     print("⚠️  Make sure telegram_bot_groups_translated.py is running!")
     print("="*70 + "\n")
     
-    app.run(debug=True, port=5000, use_reloader=False, threaded=True)
+    app.run(host="0.0.0.0", debug=True, port=5000, use_reloader=False, threaded=True)

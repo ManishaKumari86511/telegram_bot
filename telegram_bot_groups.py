@@ -359,14 +359,20 @@ async def bot_outgoing_worker():
                 
                 try:
                     if is_group and chat_id:
+                        # ⭐ FIX 2: Telegram groups need negative ID with -100 prefix
+                        # DB stores raw ID, bot needs full supergroup format
+                        formatted_chat_id = int(chat_id)
+                        if formatted_chat_id > 0:
+                            formatted_chat_id = int(f"-100{chat_id}")
+
                         if topic_id:
                             sent_msg = await bot_client.send_message(
-                                chat_id,
+                                formatted_chat_id,
                                 message,
                                 reply_to=topic_id
                             )
                         else:
-                            sent_msg = await bot_client.send_message(chat_id, message)
+                            sent_msg = await bot_client.send_message(formatted_chat_id, message)
                         
                         # 🆕 Track translation messages
                         if message_category == 'translation' and sent_msg:
@@ -419,7 +425,13 @@ async def handle_incoming_message(event):
         
         # 🆕 IMPROVED: Check message category
         is_bot = sender_id == BOT_USER_ID
-        
+        is_own_message = (YOUR_USER_ID is not None and sender_id == YOUR_USER_ID)
+
+        # ⭐ FIX 1: Skip messages sent by yourself — don't show in dashboard
+        if is_own_message:
+            print(f"⏭️  Skipping own message (sent by you)")
+            return
+
         if is_bot:
             # Check if this is a translation message that should be ignored
             if is_bot_translation_message(message.id):

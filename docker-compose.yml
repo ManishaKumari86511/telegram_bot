@@ -9,6 +9,9 @@ services:
     restart: always
     volumes:
       - ./bot_data.db:/app/bot_data.db
+        - ./bot_session.session:/app/bot_session.session
+        - ./main_session.session:/app/main_session.session
+        - ./user_session.session:/app/user_session.session
     env_file:
       - .env
 
