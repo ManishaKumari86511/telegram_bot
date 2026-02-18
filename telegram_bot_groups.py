@@ -32,6 +32,13 @@ YOUR_USER_ID = None
 BOT_USER_ID = None
 DB = "bot_data.db"
 
+# ===== INFINITE LOOP PREVENTION =====
+# Tracks (chat_id, message_id) of messages we ALREADY triggered translation for.
+# Without this, every group the bot posts to fires handle_incoming_message again,
+# which queues more translations → exponential explosion with 3+ groups.
+_processed_translation_events = set()   # set of (chat_id, message_id)
+_processed_events_lock = None           # asyncio.Lock, set in main()
+
 # ===== TELEGRAM CLIENTS =====
 user_client = TelegramClient("user_session", YOUR_API_ID, YOUR_API_HASH)
 bot_client = None
@@ -165,16 +172,36 @@ def init_db():
     """)
     
     # Track which messages were sent by bot for translation
+    # PRIMARY KEY is (chat_id, message_id) because message IDs are per-chat, NOT global
     c.execute("""
     CREATE TABLE IF NOT EXISTS bot_translation_messages (
-        message_id INTEGER PRIMARY KEY,
-        chat_id INTEGER,
+        chat_id INTEGER NOT NULL,
+        message_id INTEGER NOT NULL,
         topic_id INTEGER,
         original_message_text TEXT,
         language TEXT,
-        sent_at DATETIME
+        sent_at DATETIME,
+        PRIMARY KEY (chat_id, message_id)
     )
     """)
+    
+    # Migrate old table if it has the wrong schema (single message_id PK)
+    try:
+        c.execute("SELECT chat_id FROM bot_translation_messages LIMIT 1")
+    except sqlite3.OperationalError:
+        # Old schema without chat_id as part of PK - drop and recreate
+        c.execute("DROP TABLE IF EXISTS bot_translation_messages")
+        c.execute("""
+        CREATE TABLE bot_translation_messages (
+            chat_id INTEGER NOT NULL,
+            message_id INTEGER NOT NULL,
+            topic_id INTEGER,
+            original_message_text TEXT,
+            language TEXT,
+            sent_at DATETIME,
+            PRIMARY KEY (chat_id, message_id)
+        )
+        """)
 
     conn.commit()
     conn.close()
@@ -315,26 +342,44 @@ def queue_message(user_id, message, chat_id=None, topic_id=None, target_language
     conn.close()
 
 def track_bot_translation_message(message_id, chat_id, topic_id, original_text, language):
-    """Track messages sent by bot for translation purposes"""
+    """
+    Track messages sent by bot.
+    IMPORTANT: Uses (chat_id, message_id) composite key.
+    Telegram message IDs are per-chat, NOT global.
+    msg_id=5 in Group A is unrelated to msg_id=5 in Group B.
+    """
     try:
         conn = get_db()
         c = conn.cursor()
         c.execute("""
-            INSERT INTO bot_translation_messages 
-            (message_id, chat_id, topic_id, original_message_text, language, sent_at)
+            INSERT OR IGNORE INTO bot_translation_messages 
+            (chat_id, message_id, topic_id, original_message_text, language, sent_at)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (message_id, chat_id, topic_id or 0, original_text, language, datetime.now()))
+        """, (chat_id, message_id, topic_id or 0, original_text, language, datetime.now()))
         conn.commit()
         conn.close()
+        # Also add to in-memory set for instant lookup (no DB round-trip needed)
+        _processed_translation_events.add((chat_id, message_id))
     except Exception as e:
         print(f"⚠️  Could not track translation message: {e}")
 
-def is_bot_translation_message(message_id):
-    """Check if a message was sent by bot for translation"""
+def is_bot_translation_message(message_id, chat_id):
+    """
+    Check if a message was sent by bot for translation.
+    Must use BOTH chat_id AND message_id — IDs are not global across chats.
+    Checks in-memory set first (fast), then DB as fallback.
+    """
+    # Fast in-memory check first
+    if (chat_id, message_id) in _processed_translation_events:
+        return True
+    # DB fallback (covers restarts)
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute("SELECT 1 FROM bot_translation_messages WHERE message_id = ?", (message_id,))
+        c.execute(
+            "SELECT 1 FROM bot_translation_messages WHERE chat_id = ? AND message_id = ?",
+            (chat_id, message_id)
+        )
         result = c.fetchone()
         conn.close()
         return result is not None
@@ -531,22 +576,22 @@ async def handle_incoming_message(event):
         if not text:
             return
         
-        # Check if message is from bot
+        # ===== BOT MESSAGE GUARD =====
+        # ALWAYS skip ALL messages from our own bot — unconditionally.
+        # The bot ONLY sends translation messages, so there's nothing to process.
+        # Previously this had a dangerous "let non-matching bot messages through"
+        # fallthrough which caused infinite loops when pattern matching failed.
         if sender_id == BOT_USER_ID:
-            # ✅ IMPROVED: Check if it's a translation message by content pattern
-            # Translation messages start with "Language:" format
-            if ':' in text and any(lang in text.split(':')[0] for lang in ['Polish', 'German', 'English', 'Spanish', 'French', 'Hindi']):
-                print(f"⏭️  Skipping bot translation message (detected by pattern)")
-                return
-            
-            # Also check database (for safety)
-            if is_bot_translation_message(message.id):
-                print(f"⏭️  Skipping bot translation message (detected by DB)")
-                return
-            
-            # Other bot messages - process them
-            print(f"ℹ️  Bot message (not translation): {text[:50]}...")
-            # Don't return here - let it be processed for translation!
+            print(f"⏭️  Skipping bot message (sender is our bot) — loop prevention")
+            return
+        
+        # Also check by (chat_id, message_id) in case we see our own outgoing
+        # bot message reflected back before sender_id is resolved
+        chat_for_check = await event.get_chat()
+        chat_id_for_check = getattr(chat_for_check, 'id', None)
+        if chat_id_for_check and is_bot_translation_message(message.id, chat_id_for_check):
+            print(f"⏭️  Skipping bot translation message (detected by DB/cache)")
+            return
         
         # Get message info
         
@@ -597,6 +642,15 @@ async def handle_incoming_message(event):
             print(f"   For you: {translated_for_you[:50]}...")
         
         # STEP 2: BROADCAST TRANSLATIONS (via BOT in groups)
+        # Dedup guard: if we already triggered translations for this exact message
+        # (can happen if Telethon fires the event twice), skip it.
+        if is_group and chat_id:
+            event_key = (chat_id, message.id)
+            if event_key in _processed_translation_events:
+                print(f"⏭️  Skipping duplicate event for msg_id={message.id} in chat={chat_id}")
+                return
+            _processed_translation_events.add(event_key)
+        
         if is_group and TRANSLATION_SETTINGS['enabled'] and TRANSLATION_SETTINGS['use_bot_for_translations']:
             print(f"\n🌍 Broadcasting Translations via BOT")
             
@@ -798,7 +852,8 @@ async def status_command(event):
 
 # ===== MAIN =====
 async def main():
-    global YOUR_USER_ID, BOT_USER_ID, bot_client
+    global YOUR_USER_ID, BOT_USER_ID, bot_client, _processed_events_lock
+    _processed_events_lock = asyncio.Lock()
     
     print("\n" + "="*70)
     print("🤖 DUAL-CLIENT BOT - CORRECTED VERSION")
