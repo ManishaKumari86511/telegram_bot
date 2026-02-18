@@ -894,7 +894,7 @@ async def main():
     for lang in TRANSLATION_SETTINGS['group_languages']:
         print(f"   • {translator.LANGUAGES.get(lang)}")
     print("\n🤖 Bot sends: Translations in groups")
-    print("👤 You send: Everything else")
+    print("👤 You send: Everything elsenfdd")
     print("\nPress Ctrl+C to stop\n")
     
     await asyncio.gather(
